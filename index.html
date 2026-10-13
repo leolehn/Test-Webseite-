@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMW E46 3D Showcase</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            font-family: sans-serif;
+            color: #fff;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        h1 {
+            margin: 0 0 5px 0;
+            font-size: 1.5rem;
+            letter-spacing: 1px;
+        }
+        p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="info">
+        <h1>BMW E46 3D SHOWCASE</h1>
+        <p>Klicke und ziehe, um das Modell zu drehen • Scrolle zum Zoomen</p>
+    </div>
+
+    <!-- Three.js und OrbitControls einbinden -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // Szene, Kamera und Renderer einrichten
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        scene.fog = new THREE.FogExp2(0x111111, 0.03);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(6, 3, 6);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Steuerung (OrbitControls)
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; // Nicht unter den Boden schauen
+        controls.minDistance = 2;
+        controls.maxDistance = 20;
+
+        // Lichtquellen
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        const blueLight = new THREE.PointLight(0x3b82f6, 2, 20);
+        blueLight.position.set(-8, 5, -8);
+        scene.add(blueLight);
+
+        const warmLight = new THREE.PointLight(0xf97316, 1.5, 20);
+        warmLight.position.set(8, 5, 8);
+        scene.add(warmLight);
+
+        // Bodenplatte mit Grid
+        const grid = new THREE.GridHelper(30, 30, 0x444444, 0x222222);
+        grid.position.y = -0.01;
+        scene.add(grid);
+
+        const floorGeometry = new THREE.PlaneGeometry(100, 100);
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111, 
+            roughness: 0.4, 
+            metalness: 0.8 
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // --- PROVISORISCHES 3D-MODELL (BMW E46 Coupé Stil) ---
+        const carGroup = new THREE.Group();
+
+        // Materialien
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.2, metalness: 0.9 }); // Tiefschwarz
+        const windowMaterial = new THREE.MeshPhysicalMaterial({ color: 0x111111, roughness: 0.1, transmission: 0.3, transparent: true, opacity: 0.8 });
+        const chromeMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1.0, roughness: 0.1 });
+        const rimMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.2 });
+        const tireMaterial = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.9 });
+        const lightRedMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const lightOrangeMaterial = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+
+        // Karosserie Hauptteil
+        const bodyGeo = new THREE.BoxGeometry(1.8, 0.5, 4.2);
+        const body = new THREE.Mesh(bodyGeo, bodyMaterial);
+        body.position.y = 0.45;
+        body.castShadow = true;
+        carGroup.add(body);
+
+        // Fahrgastzelle (Coupé Dachlinie)
+        const cabinGeo = new THREE.BoxGeometry(1.6, 0.45, 2.2);
+        const cabin = new THREE.Mesh(cabinGeo, windowMaterial);
+        cabin.position.set(0, 0.85, -0.1);
+        cabin.castShadow = true;
+        carGroup.add(cabin);
+
+        // Motorhaube & Kofferraum Feinschliff
+        const hoodGeo = new THREE.BoxGeometry(1.7, 0.05, 1.2);
+        const hood = new THREE.Mesh(hoodGeo, bodyMaterial);
+        hood.position.set(0, 0.72, 1.2);
+        carGroup.add(hood);
+
+        // Räder erstellen (mit Tiefbett-Optik angelehnt an BBS LeMans)
+        function createWheel(x, z) {
+            const wheelGroup = new THREE.Group();
+            
+            // Reifen
+            const tireGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.25, 32);
+            tireGeo.rotateX(Math.PI / 2);
+            const tire = new THREE.Mesh(tireGeo, tireMaterial);
+            tire.castShadow = true;
+            wheelGroup.add(tire);
+
+            // Felge
+            const rimGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.26, 24);
+            rimGeo.rotateX(Math.PI / 2);
+            const rim = new THREE.Mesh(rimGeo, rimMaterial);
+            wheelGroup.add(rim);
+
+            wheelGroup.position.set(x, 0.35, z);
+            return wheelGroup;
+        }
+
+        // 4 Räder platzieren (leicht tiefgelegt)
+        carGroup.add(createWheel(-0.9, 1.3));   // Vorne links
+        carGroup.add(createWheel(0.9, 1.3));    // Vorne rechts
+        carGroup.add(createWheel(-0.9, -1.3));  // Hinten links
+        carGroup.add(createWheel(0.9, -1.3));   // Hinten rechts
+
+        // Scheinwerfer / Details hinten (Signatur E46 Facelift Rückleuchten angedeutet)
+        const tailLightGeo = new THREE.BoxGeometry(0.4, 0.15, 0.05);
+        
+        const leftTail = new THREE.Mesh(tailLightGeo, lightRedMaterial);
+        leftTail.position.set(-0.7, 0.55, -2.11);
+        carGroup.add(leftTail);
+
+        const rightTail = new THREE.Mesh(tailLightGeo, lightRedMaterial);
+        rightTail.position.set(0.7, 0.55, -2.11);
+        carGroup.add(rightTail);
+
+        // Auspuffrohre (Doppelrohr links)
+        const exhaustGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.2, 16);
+        exhaustGeo.rotateX(Math.PI / 2);
+        
+        const ex1 = new THREE.Mesh(exhaustGeo, chromeMaterial);
+        ex1.position.set(-0.6, 0.25, -2.15);
+        carGroup.add(ex1);
+
+        const ex2 = new THREE.Mesh(exhaustGeo, chromeMaterial);
+        ex2.position.set(-0.72, 0.25, -2.15);
+        carGroup.add(ex2);
+
+        // Auto zur Szene hinzufügen
+        scene.add(carGroup);
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            
+            // Sanftes, automatisches Drehen, solange der Nutzer nicht eingreift
+            if(!controls.state == -1) {
+                carGroup.rotation.y += 0.003;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Responsive Anpassung bei Fenstergröße
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+  </html>
+  
