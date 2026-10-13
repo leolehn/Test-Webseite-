@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Car Racer</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #111;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+        h1 {
+            margin: 5px 0;
+            font-size: 24px;
+            text-shadow: 0 0 10px #0ff;
+        }
+        #game-container {
+            position: relative;
+            width: 320px;
+            height: 480px;
+            background: #333;
+            border: 4px solid #fff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+        #controls {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .btn {
+            background: #222;
+            color: #0ff;
+            border: 2px solid #0ff;
+            padding: 15px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 8px;
+            user-select: none;
+        }
+        .btn:active {
+            background: #0ff;
+            color: #222;
+        }
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 10;
+        }
+        #start-screen h2 {
+            color: #0ff;
+            margin-bottom: 10px;
+        }
+        #start-btn {
+            background: #0ff;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>RETRO RACER</h1>
+    <div id="game-container">
+        <div id="ui">
+            <div>Score: <span id="score">0</span></div>
+            <div>High: <span id="highscore">0</span></div>
+        </div>
+        <div id="start-screen">
+            <h2>BEREIT?</h2>
+            <p>Weiche den Autos aus!</p>
+            <p style="font-size: 12px; color: #aaa;">PC: Pfeiltasten / A & D<br>Handy: Buttons unten</p>
+            <button id="start-btn" onclick="startGame()">START</button>
+        </div>
+        <canvas id="gameCanvas" width="320" height="480"></canvas>
+    </div>
+
+    <div id="controls">
+        <button class="btn" id="left-btn">◀</button>
+        <button class="btn" id="right-btn">▶</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let score = 0;
+        let highscore = localStorage.getItem("retro_highscore") || 0;
+        document.getElementById("highscore").innerText = highscore;
+
+        let gameInterval = null;
+        let isRunning = false;
+
+        // Spieler Auto
+        let player = {
+            x: 135,
+            y: 380,
+            width: 50,
+            height: 80,
+            speed: 5,
+            color: "#ff3333"
+        };
+
+        let enemies = [];
+        let roadOffset = 0;
+        let spawnTimer = 0;
+
+        let keys = {
+            left: false,
+            right: false
+        };
+
+        // Steuerung Event Listener (PC)
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") keys.left = true;
+            if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") keys.right = true;
+        });
+        window.addEventListener("keyup", (e) => {
+            if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") keys.left = false;
+            if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") keys.right = false;
+        });
+
+        // Steuerung Event Listener (Handy Buttons)
+        const leftBtn = document.getElementById("left-btn");
+        const rightBtn = document.getElementById("right-btn");
+
+        leftBtn.addEventListener("touchstart", () => keys.left = true);
+        leftBtn.addEventListener("touchend", () => keys.left = false);
+        leftBtn.addEventListener("mousedown", () => keys.left = true);
+        leftBtn.addEventListener("mouseup", () => keys.left = false);
+
+        rightBtn.addEventListener("touchstart", () => keys.right = true);
+        rightBtn.addEventListener("touchend", () => keys.right = false);
+        rightBtn.addEventListener("mousedown", () => keys.right = true);
+        rightBtn.addEventListener("mouseup", () => keys.right = false);
+
+        function startGame() {
+            document.getElementById("start-screen").style.display = "none";
+            player.x = 135;
+            enemies = [];
+            score = 0;
+            spawnTimer = 0;
+            document.getElementById("score").innerText = score;
+            isRunning = true;
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(update, 1000 / 60);
+        }
+
+        function spawnEnemy() {
+            const lanes = [40, 115, 190, 265]; // Mögliche Spuren
+            // Nimm 3 zufällige x-Positionen für Spuren
+            const laneX = [45, 135, 225];
+            const x = laneX[Math.floor(Math.random() * laneX.length)];
+            const colors = ["#3333ff", "#33cc33", "#ffcc00", "#cc33cc"];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            enemies.push({
+                x: x,
+                y: -100,
+                width: 50,
+                height: 80,
+                speed: 4 + Math.random() * 2,
+                color: color
+            });
+        }
+
+        function drawCar(x, y, w, h, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, w, h); // Karosserie
+            // Windschutzscheibe
+            ctx.fillStyle = "#111";
+            ctx.fillRect(x + 5, y + 15, w - 10, 20);
+            ctx.fillRect(x + 5, y + h - 25, w - 10, 15);
+            // Reifen
+            ctx.fillStyle = "#000";
+            ctx.fillRect(x - 5, y + 10, 5, 15);
+            ctx.fillRect(x + w, y + 10, 5, 15);
+            ctx.fillRect(x - 5, y + h - 25, 5, 15);
+            ctx.fillRect(x + w, y + h - 25, 5, 15);
+        }
+
+        function update() {
+            if (!isRunning) return;
+
+            // Bewegung Spieler
+            if (keys.left && player.x > 30) player.x -= player.speed;
+            if (keys.right && player.x < canvas.width - player.width - 30) player.x += player.speed;
+
+            // Straße bewegen (Animation)
+            roadOffset = (roadOffset + 6) % 40;
+
+            // Gegner spawnen
+            spawnTimer++;
+            if (spawnTimer > 70) {
+                spawnEnemy();
+                spawnTimer = 0;
+            }
+
+            // Gegner bewegen & Kollision prüfen
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let en = enemies[i];
+                en.y += en.speed;
+
+                // Kollisionsabfrage (Bounding Box)
+                if (
+                    player.x < en.x + en.width &&
+                    player.x + player.width > en.x &&
+                    player.y < en.y + en.height &&
+                    player.y + player.height > en.y
+                ) {
+                    // Crash!
+                    isRunning = false;
+                    clearInterval(gameInterval);
+                    if (score > highscore) {
+                        highscore = score;
+                        localStorage.setItem("retro_highscore", highscore);
+                        document.getElementById("highscore").innerText = highscore;
+                    }
+                    document.getElementById("start-screen").style.display = "flex";
+                    document.getElementById("start-screen").querySelector("h2").innerText = "CRASH!";
+                    document.getElementById("start-btn").innerText = "NOCHMAL";
+                }
+
+                // Entfernen wenn unten raus
+                if (en.y > canvas.height) {
+                    enemies.splice(i, 1);
+                    score += 10;
+                    document.getElementById("score").innerText = score;
+                }
+            }
+
+            draw();
+        }
+
+        function draw() {
+            // Hintergrund (Gras)
+            ctx.fillStyle = "#225522";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Straße
+            ctx.fillStyle = "#444";
+            ctx.fillRect(20, 0, canvas.width - 40, canvas.height);
+
+            // Fahrstreifen-Linien (Gestrichelt)
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 4;
+            ctx.setLineDash([20, 20]);
+            ctx.lineDashOffset = -roadOffset;
+
+            ctx.beginPath();
+            ctx.moveTo(106, 0);
+            ctx.lineTo(106, canvas.height);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(213, 0);
+            ctx.lineTo(213, canvas.height);
+            ctx.stroke();
+
+            ctx.setLineDash([]); // Reset
+
+            // Seitenbegrenzung (Rot-Weiß)
+            ctx.fillStyle = "#ff3333";
+            ctx.fillRect(20, 0, 8, canvas.height);
+            ctx.fillRect(canvas.width - 28, 0, 8, canvas.height);
+
+            // Gegner zeichnen
+            for (let en of enemies) {
+                drawCar(en.x, en.y, en.width, en.height, en.color);
+            }
+
+            // Spieler zeichnen
+            drawCar(player.x, player.y, player.width, player.height, player.color);
+        }
+    </script>
+</body>
+  </html>
+  
